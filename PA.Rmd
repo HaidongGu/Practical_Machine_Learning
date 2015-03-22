@@ -1,0 +1,118 @@
+---
+title:      "Practical Machine Learning: Peer Assessment"
+author:     "Haidong Gu"
+date:       "22, March, 2014"
+output: 
+  html_document:
+    keep_md: true
+---
+
+## Requirement
+please see [Coursera Website](https://class.coursera.org/predmachlearn-012/human_grading/view/courses/973547/assessments/4/submissions) for details.
+
+## Loading and Processing
+
+load librarires
+```{r}
+library(caret)
+library(randomForest)
+
+set.seed(8880)
+```
+
+set working directory, it will be different for each person
+```{r}
+setwd("/Users/hgu/Downloads/")
+paste("working dir is", getwd())
+```
+
+ 1. Load the data
+
+```{r}
+if (!file.exists("./pml-training.csv")) {
+    download.file("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", 
+        destfile = "./pml-training.csv")
+}
+if (!file.exists("./pml-testing.csv")) {
+    download.file("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", 
+        destfile = "./pml-testing.csv")
+}
+
+data_training <- read.csv("./pml-training.csv")
+data_testing <- read.csv("./pml-testing.csv")
+```
+
+ 2. Process/transform the data
+
+remove columns with all missing values or without keywords from predication.
+```{r}
+missing_value_col <- sapply(data_testing, function (x) any(is.na(x) | x == ""))
+predictors <- names(missing_value_col)[!missing_value_col]
+predictors <- predictors[grepl("belt|forearm|arm|dumbbell", predictors)]
+
+data_training <- data_training[c("classe", predictors)]
+
+dim(data_training)
+names(data_training)
+```
+
+ 3. partition the training data with 60% training, 40% probing.
+
+```{r}
+partition <- createDataPartition(data_training$classe, p=0.6, list=FALSE)
+data_probing <- data_training[-partition, ]
+data_training <- data_training[partition, ]
+
+```
+
+## Modeling
+
+building model with Random Forest ("rf") machine leaning techique. __It will be a good model  if the error is less than 2.5%.__
+
+```{r cache=TRUE}
+model <- train(classe ~ ., data = data_training, method = "rf", prox = TRUE, 
+               trControl = trainControl(method = "cv", number = 4, allowParallel = TRUE))
+```
+
+### Evaluate the model on the training data
+
+```{r}
+training_result <- predict(model, data_training)
+confusionMatrix(training_result, data_training$classe)
+```
+
+### Evaluate the model on the probing data
+
+```{r}
+probing_result <- predict(model, data_probing)
+confusionMatrix(probing_result, data_probing$classe)
+```
+
+### Final Mode
+```{r}
+varImp(model)
+model$finalModel
+```
+
+__OOB estimate of error rate is 0.88%.__
+
+## Apply model to testing data and Submit
+```{r}
+testing_result <- predict(model, data_testing)
+```
+
+prepare for submission
+```{r}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=file.path("/Users/hgu/Downloads/answers2", filename),quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+pml_write_files(testing_result)
+```
+
+## Summary
+* I use _Random Forest_ to to build our model.
+* I was expecting error rate to below 2.5%, and my model achieves 0.88%.
